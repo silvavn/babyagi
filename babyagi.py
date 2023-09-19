@@ -20,37 +20,55 @@ import re
 # default opt out of chromadb telemetry.
 from chromadb.config import Settings
 
-client = chromadb.Client(Settings(anonymized_telemetry=False))
 
-# Engine configuration
+class BabyAGI:
+    def __init__(self):
+        self.chroma_client = None
+        self.LLM_MODEL = None
+        self.OPENAI_API_KEY = None
 
-# Model: GPT, LLAMA, HUMAN, etc.
-LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")).lower()
+    # function to set up chromadb client
+    @property
+    def chroma_client(self):
+        return self._chroma_client
+    
+    @chroma_client.setter
+    def chroma_client(self, value):
+        self._chroma_client = value
+    
+    # function to set up LLM model
+    @property
+    def LLM_MODEL(self):
+        return self._LLM_MODEL
+    
+    @LLM_MODEL.setter
+    def LLM_MODEL(self, value):
+        self._LLM_MODEL = value
 
-# API Keys
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-if not (LLM_MODEL.startswith("llama") or LLM_MODEL.startswith("human")):
-    assert OPENAI_API_KEY, "\033[91m\033[1m" + "OPENAI_API_KEY environment variable is missing from .env" + "\033[0m\033[0m"
+def make_baby(coop_mode:str="none", join_existing:bool=False):
+    baby_agi = BabyAGI()
+    baby_agi.chroma_client = chromadb.Client(Settings(anonymized_telemetry=False))
+    baby_agi.LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")).lower()
+    baby_agi.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    if not (baby_agi.LLM_MODEL.startswith("llama") or baby_agi.LLM_MODEL.startswith("human")):
+        assert baby_agi.OPENAI_API_KEY, "\033[91m\033[1m" + "OPENAI_API_KEY environment variable is missing from .env" + "\033[0m\033[0m"
 
-# Table config
-RESULTS_STORE_NAME = os.getenv("RESULTS_STORE_NAME", os.getenv("TABLE_NAME", ""))
-assert RESULTS_STORE_NAME, "\033[91m\033[1m" + "RESULTS_STORE_NAME environment variable is missing from .env" + "\033[0m\033[0m"
+    # Table config
+    baby_agi.RESULTS_STORE_NAME = os.getenv("RESULTS_STORE_NAME", os.getenv("TABLE_NAME", ""))
+    assert baby_agi.RESULTS_STORE_NAME, "\033[91m\033[1m" + "RESULTS_STORE_NAME environment variable is missing from .env" + "\033[0m\033[0m"
 
-# Run configuration
-INSTANCE_NAME = os.getenv("INSTANCE_NAME", os.getenv("BABY_NAME", "BabyAGI"))
-COOPERATIVE_MODE = "none"
-JOIN_EXISTING_OBJECTIVE = False
+    # Run configuration
+    baby_agi.INSTANCE_NAME = os.getenv("INSTANCE_NAME", os.getenv("BABY_NAME", "BabyAGI"))
+    baby_agi.COOPERATIVE_MODE = "none"
+    baby_agi.JOIN_EXISTING_OBJECTIVE = False
+    baby_agi.OBJECTIVE = os.getenv("OBJECTIVE", "")
+    baby_agi.INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
+    # Model configuration
+    baby_agi.OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
 
-# Goal configuration
-OBJECTIVE = os.getenv("OBJECTIVE", "")
-INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
-
-# Model configuration
-OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
-
+    return baby_agi
 
 # Extensions support begin
-
 def can_import(module_name):
     try:
         importlib.import_module(module_name)
