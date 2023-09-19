@@ -68,49 +68,6 @@ def make_baby(coop_mode:str="none", join_existing:bool=False):
 
     return baby_agi
 
-# Extensions support begin
-def can_import(module_name):
-    try:
-        importlib.import_module(module_name)
-        return True
-    except ImportError:
-        return False
-
-
-DOTENV_EXTENSIONS = os.getenv("DOTENV_EXTENSIONS", "").split(" ")
-
-# Command line arguments extension
-# Can override any of the above environment variables
-ENABLE_COMMAND_LINE_ARGS = (
-        os.getenv("ENABLE_COMMAND_LINE_ARGS", "false").lower() == "true"
-)
-if ENABLE_COMMAND_LINE_ARGS:
-    if can_import("extensions.argparseext"):
-        from extensions.argparseext import parse_arguments
-
-        OBJECTIVE, INITIAL_TASK, LLM_MODEL, DOTENV_EXTENSIONS, INSTANCE_NAME, COOPERATIVE_MODE, JOIN_EXISTING_OBJECTIVE = parse_arguments()
-
-# Human mode extension
-# Gives human input to babyagi
-if LLM_MODEL.startswith("human"):
-    if can_import("extensions.human_mode"):
-        from extensions.human_mode import user_input_await
-
-# Load additional environment variables for enabled extensions
-# TODO: This might override the following command line arguments as well:
-#    OBJECTIVE, INITIAL_TASK, LLM_MODEL, INSTANCE_NAME, COOPERATIVE_MODE, JOIN_EXISTING_OBJECTIVE
-if DOTENV_EXTENSIONS:
-    if can_import("extensions.dotenvext"):
-        from extensions.dotenvext import load_dotenv_extensions
-
-        load_dotenv_extensions(DOTENV_EXTENSIONS)
-
-# TODO: There's still work to be done here to enable people to get
-# defaults from dotenv extensions, but also provide command line
-# arguments to override them
-
-# Extensions support end
-
 print("\033[95m\033[1m" + "\n*****CONFIGURATION*****\n" + "\033[0m\033[0m")
 print(f"Name  : {INSTANCE_NAME}")
 print(f"Mode  : {'alone' if COOPERATIVE_MODE in ['n', 'none'] else 'local' if COOPERATIVE_MODE in ['l', 'local'] else 'distributed' if COOPERATIVE_MODE in ['d', 'distributed'] else 'undefined'}")
