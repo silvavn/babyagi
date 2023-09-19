@@ -9,72 +9,28 @@ import time
 import logging
 from collections import deque
 from typing import Dict, List
-import importlib
-import openai
 import chromadb
 import tiktoken as tiktoken
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 import re
+from baby_agi import BabyAGI
 
 # default opt out of chromadb telemetry.
 from chromadb.config import Settings
 
-
-class BabyAGI:
-    def __init__(self):
-        self._chroma_client = None
-        self._LLM_MODEL = None
-
-    # function to set up chromadb client
-    @property
-    def chroma_client(self):
-        return self._chroma_client
-    
-    @chroma_client.setter
-    def chroma_client(self, value):
-        self._chroma_client = value
-    
-    # function to set up LLM model
-    @property
-    def LLM_MODEL(self):
-        return self._LLM_MODEL
-    
-    @LLM_MODEL.setter
-    def LLM_MODEL(self, value):
-        self._LLM_MODEL = value
-
-    # prints the BabyAGI configuration
-    def print_config(self):
-        print("\033[95m\033[1m" + "\n*****CONFIGURATION*****\n" + "\033[0m\033[0m")
-        print(f"Name  : {self.INSTANCE_NAME}")
-        print(f"Mode  : {'alone' if self.COOPERATIVE_MODE in ['n', 'none'] else 'local' if self.COOPERATIVE_MODE in ['l', 'local'] else 'distributed' if self.COOPERATIVE_MODE in ['d', 'distributed'] else 'undefined'}")
-        print(f"LLM   : {self.LLM_MODEL}")
-
-    # checks whether the basic settings are correct
-    def check_config(self):
-        # Check if we know what we are doing
-        assert self.OBJECTIVE, "\033[91m\033[1m" + "OBJECTIVE environment variable is missing from .env" + "\033[0m\033[0m"
-        assert self.INITIAL_TASK, "\033[91m\033[1m" + "INITIAL_TASK environment variable is missing from .env" + "\033[0m\033[0m"
-
 def make_baby(coop_mode:str="none", join_existing:bool=False):
-    baby_agi = BabyAGI()
-    baby_agi.chroma_client = chromadb.Client(Settings(anonymized_telemetry=False))
-    baby_agi.LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")).lower()
-    baby_agi.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    if not (baby_agi.LLM_MODEL.startswith("llama") or baby_agi.LLM_MODEL.startswith("human")):
-        assert baby_agi.OPENAI_API_KEY, "\033[91m\033[1m" + "OPENAI_API_KEY environment variable is missing from .env" + "\033[0m\033[0m"
-
-    # Table config
-    baby_agi.RESULTS_STORE_NAME = os.getenv("RESULTS_STORE_NAME", os.getenv("TABLE_NAME", ""))
-    assert baby_agi.RESULTS_STORE_NAME, "\033[91m\033[1m" + "RESULTS_STORE_NAME environment variable is missing from .env" + "\033[0m\033[0m"
+    agent_settings = {
+    }
+    agent_settings["vectordb_client"] = chromadb.Client(Settings(anonymized_telemetry=False))
+    agent_settings["LLM_MODEL"] = os.getenv("LLM_MODEL", "").lower()
+    agent_settings["RESULTS_STORE_NAME"] = os.getenv("RESULTS_STORE_NAME", os.getenv("TABLE_NAME", ""))
 
     # Run configuration
-    baby_agi.INSTANCE_NAME = os.getenv("INSTANCE_NAME", os.getenv("BABY_NAME", "BabyAGI"))
-    baby_agi.COOPERATIVE_MODE = "none"
-    baby_agi.JOIN_EXISTING_OBJECTIVE = False
-    baby_agi.OBJECTIVE = os.getenv("OBJECTIVE", "")
-    baby_agi.INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
+    agent_settings["INSTANCE_NAME"].INSTANCE_NAME = os.getenv("INSTANCE_NAME", "")
+    agent_settings["OBJECTIVE"] = os.getenv("OBJECTIVE", "")
+    agent_settings["INITIAL_TASK"] = os.getenv("INITIAL_TASK", "")
+    
 
     print("\033[94m\033[1m" + "\n*****OBJECTIVE*****\n" + "\033[0m\033[0m")
     print(f"{baby_agi.OBJECTIVE}")
@@ -192,53 +148,6 @@ class SingleTaskListStorage:
 
 # Initialize tasks storage
 tasks_storage = SingleTaskListStorage()
-if COOPERATIVE_MODE in ['l', 'local']:
-    if can_import("extensions.ray_tasks"):
-        import sys
-        from pathlib import Path
-
-        sys.path.append(str(Path(__file__).resolve().parent))
-        from extensions.ray_tasks import CooperativeTaskListStorage
-
-        tasks_storage = CooperativeTaskListStorage(OBJECTIVE)
-        print("\nReplacing tasks storage: " + "\033[93m\033[1m" + "Ray" + "\033[0m\033[0m")
-elif COOPERATIVE_MODE in ['d', 'distributed']:
-    pass
-
-
-def limit_tokens_from_string(string: str, model: str, limit: int) -> str:
-    """Limits the string to a number of tokens (estimated)."""
-
-    try:
-        encoding = tiktoken.encoding_for_model(model)
-    except:
-        encoding = tiktoken.encoding_for_model('gpt2')  # Fallback for others.
-
-    encoded = encoding.encode(string)
-
-    return encoding.decode(encoded[:limit])
-
-
-def openai_call(
-    prompt: str,
-    model: str = LLM_MODEL,
-    temperature: float = OPENAI_TEMPERATURE,
-    max_tokens: int = 100,
-):
-    while True:
-        result = llm(prompt[:CTX_MAX],
-                        stop=["### Human"],
-                        echo=False,
-                        temperature=0.2,
-                        top_k=40,
-                        top_p=0.95,
-                        repeat_penalty=1.05,
-                        max_tokens=200)
-        # print('\n*****RESULT JSON DUMP*****\n')
-        # print(json.dumps(result))
-        # print('\n')
-        return result['choices'][0]['text'].strip()
-
 
 def task_creation_agent(
         objective: str, result: Dict, task_description: str, task_list: List[str]
