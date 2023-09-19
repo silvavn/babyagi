@@ -12,6 +12,7 @@ from typing import Dict, List
 import chromadb
 import tiktoken as tiktoken
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+
 # from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 import re
 from baby_agi import BabyAGI
@@ -19,24 +20,31 @@ from baby_agi import BabyAGI
 # default opt out of chromadb telemetry.
 from chromadb.config import Settings
 
-def make_baby(coop_mode:str="none", join_existing:bool=False):
-    agent_settings = {
-    }
-    agent_settings["vectordb_client"] = chromadb.Client(Settings(anonymized_telemetry=False))
+
+def make_baby(coop_mode: str = "none", join_existing: bool = False):
+    agent_settings = {}
+    agent_settings["vectordb_client"] = chromadb.Client(
+        Settings(anonymized_telemetry=False)
+    )
     agent_settings["LLM_MODEL"] = os.getenv("LLM_MODEL", "").lower()
     agent_settings["LLAMA_API_PATH"] = os.getenv("LLAMA_API_PATH", "")
     agent_settings["RESULTS_STORE_NAME"] = os.getenv("RESULTS_STORE_NAME", "")
     agent_settings["AGENT_NAME"].AGENT_NAME = os.getenv("AGENT_NAME", "")
     agent_settings["OBJECTIVE"] = os.getenv("OBJECTIVE", "")
     agent_settings["INITIAL_TASK"] = os.getenv("INITIAL_TASK", "")
-    
 
     if not baby_agi.JOIN_EXISTING_OBJECTIVE:
-        print("\033[93m\033[1m" + "\nInitial task:" + "\033[0m\033[0m" + f" {baby_agi.INITIAL_TASK}")
+        print(
+            "\033[93m\033[1m"
+            + "\nInitial task:"
+            + "\033[0m\033[0m"
+            + f" {baby_agi.INITIAL_TASK}"
+        )
     else:
         print("\033[93m\033[1m" + f"\nJoining to help the objective" + "\033[0m\033[0m")
 
     return baby_agi
+
 
 # Llama embedding function
 # class LlamaEmbeddingFunction(EmbeddingFunction):
@@ -54,7 +62,7 @@ def make_baby(coop_mode:str="none", join_existing:bool=False):
 # Results storage using local ChromaDB
 class DefaultResultsStorage:
     def __init__(self):
-        logging.getLogger('chromadb').setLevel(logging.ERROR)
+        logging.getLogger("chromadb").setLevel(logging.ERROR)
         # Create Chroma collection
         chroma_persist_dir = "chroma"
         chroma_client = chromadb.PersistentClient(
@@ -75,7 +83,6 @@ class DefaultResultsStorage:
         )
 
     def add(self, task: Dict, result: str, result_id: str):
-
         # Break the function if LLM_MODEL starts with "human" (case-insensitive)
         if LLM_MODEL.startswith("human"):
             return
@@ -83,7 +90,7 @@ class DefaultResultsStorage:
 
         embeddings = llm_embed.embed(result) if LLM_MODEL.startswith("llama") else None
         if (
-                len(self.collection.get(ids=[result_id], include=[])["ids"]) > 0
+            len(self.collection.get(ids=[result_id], include=[])["ids"]) > 0
         ):  # Check if the result already exists
             self.collection.update(
                 ids=result_id,
@@ -106,15 +113,23 @@ class DefaultResultsStorage:
         results = self.collection.query(
             query_texts=query,
             n_results=min(top_results_num, count),
-            include=["metadatas"]
+            include=["metadatas"],
         )
         return [item["task"] for item in results["metadatas"][0]]
 
+
 def use_chroma():
-    print("\nUsing results storage: " + "\033[93m\033[1m" + "Chroma (Default)" + "\033[0m\033[0m")
+    print(
+        "\nUsing results storage: "
+        + "\033[93m\033[1m"
+        + "Chroma (Default)"
+        + "\033[0m\033[0m"
+    )
     return DefaultResultsStorage()
 
+
 results_storage = use_chroma()
+
 
 # Task storage supporting only a single instance of BabyAGI
 class SingleTaskListStorage:
@@ -145,74 +160,28 @@ class SingleTaskListStorage:
 # Initialize tasks storage
 tasks_storage = SingleTaskListStorage()
 
-def task_creation_agent(
-        objective: str, result: Dict, task_description: str, task_list: List[str]
-):
-    prompt = f"""Use the result from the execution agent to create new tasks with the following objective: {objective}.\nThe last completed task has the result: \n{result["data"]}\nThis result was based on this task description: {task_description}.\n"""
-
-    if task_list:
-        prompt += f"These are incomplete tasks: {', '.join(task_list)}\n"
-    prompt += "Based on the result, return a list of tasks to be completed in order to meet the objective. "
-    if task_list:
-        prompt += "These new tasks must not overlap with incomplete tasks. "
-
-    prompt += """Return one task per line in your response. The result must be a numbered list in the format:
-
-#. First task
-#. Second task
-...
-#. #th task
-
-The number of each entry must be followed by a period. If your list is empty, write "There are no tasks to add at this time."
-Unless your list is empty, do not include any headers before your numbered list or follow your numbered list with any other output."""
-
-    print(f'\n*****TASK CREATION AGENT PROMPT****\n{prompt}\n')
-    response = openai_call(prompt, max_tokens=2000)
-    print(f'\n****TASK CREATION AGENT RESPONSE****\n{response}\n')
-    new_tasks = response.split('\n')
-    new_tasks_list = []
-    for task_string in new_tasks:
-        task_parts = task_string.strip().split(".", 1)
-        if len(task_parts) == 2:
-            task_id = ''.join(s for s in task_parts[0] if s.isnumeric())
-            task_name = re.sub(r'[^\w\s_]+', '', task_parts[1]).strip()
-            if task_name.strip() and task_id.isnumeric():
-                new_tasks_list.append(task_name)
-            # print('New task created: ' + task_name)
-
-    out = [{"task_name": task_name} for task_name in new_tasks_list]
-    return out
-
 
 def prioritization_agent():
     task_names = tasks_storage.get_task_names()
-    bullet_string = '\n'
+    bullet_string = "\n"
 
-    prompt = f"""
-You are tasked with prioritizing the following tasks: {bullet_string + bullet_string.join(task_names)}
-Consider the ultimate objective of your team: {OBJECTIVE}.
-Tasks should be sorted from highest to lowest priority, where higher-priority tasks are those that act as pre-requisites or are more essential for meeting the objective.
-Do not remove any tasks. Return the ranked tasks as a numbered list in the format:
+    prompt = f""""""
 
-#. First task
-#. Second task
-
-The entries must be consecutively numbered, starting with 1. The number of each entry must be followed by a period.
-Do not include any headers before your ranked list or follow your list with any other output."""
-
-    print(f'\n****TASK PRIORITIZATION AGENT PROMPT****\n{prompt}\n')
+    print(f"\n****TASK PRIORITIZATION AGENT PROMPT****\n{prompt}\n")
     response = openai_call(prompt, max_tokens=2000)
-    print(f'\n****TASK PRIORITIZATION AGENT RESPONSE****\n{response}\n')
+    print(f"\n****TASK PRIORITIZATION AGENT RESPONSE****\n{response}\n")
     if not response:
-        print('Received empty response from priotritization agent. Keeping task list unchanged.')
+        print(
+            "Received empty response from priotritization agent. Keeping task list unchanged."
+        )
         return
     new_tasks = response.split("\n") if "\n" in response else [response]
     new_tasks_list = []
     for task_string in new_tasks:
         task_parts = task_string.strip().split(".", 1)
         if len(task_parts) == 2:
-            task_id = ''.join(s for s in task_parts[0] if s.isnumeric())
-            task_name = re.sub(r'[^\w\s_]+', '', task_parts[1]).strip()
+            task_id = "".join(s for s in task_parts[0] if s.isnumeric())
+            task_name = re.sub(r"[^\w\s_]+", "", task_parts[1]).strip()
             if task_name.strip():
                 new_tasks_list.append({"task_id": task_id, "task_name": task_name})
 
@@ -237,10 +206,12 @@ def execution_agent(objective: str, task: str) -> str:
     # print("\n****RELEVANT CONTEXT****\n")
     # print(context)
     # print('')
-    prompt = f'Perform one task based on the following objective: {objective}.\n'
+    prompt = f"Perform one task based on the following objective: {objective}.\n"
     if context:
-        prompt += 'Take into account these previously completed tasks:' + '\n'.join(context)
-    prompt += f'\nYour task: {task}\nResponse:'
+        prompt += "Take into account these previously completed tasks:" + "\n".join(
+            context
+        )
+    prompt += f"\nYour task: {task}\nResponse:"
     return openai_call(prompt, max_tokens=2000)
 
 
@@ -263,17 +234,12 @@ def context_agent(query: str, top_results_num: int):
     return results
 
 
-# Add the initial task if starting new objective
-if not JOIN_EXISTING_OBJECTIVE:
-    initial_task = {
-        "task_id": tasks_storage.next_task_id(),
-        "task_name": INITIAL_TASK
-    }
-    tasks_storage.append(initial_task)
-
-
 def main():
     loop = True
+
+    initial_task = {"task_id": tasks_storage.next_task_id(), "task_name": INITIAL_TASK}
+    tasks_storage.append(initial_task)
+
     while loop:
         # As long as there are tasks in the storage...
         if not tasks_storage.is_empty():
@@ -294,9 +260,7 @@ def main():
 
             # Step 2: Enrich result and store in the results storage
             # This is where you should enrich the result if needed
-            enriched_result = {
-                "data": result
-            }
+            enriched_result = {"data": result}
             # extract the actual result from the dictionary
             # since we don't do enrichment currently
             # vector = enriched_result["data"]
@@ -314,21 +278,19 @@ def main():
                 tasks_storage.get_task_names(),
             )
 
-            print('Adding new tasks to task_storage')
+            print("Adding new tasks to task_storage")
             for new_task in new_tasks:
                 new_task.update({"task_id": tasks_storage.next_task_id()})
                 print(str(new_task))
                 tasks_storage.append(new_task)
 
-            if not JOIN_EXISTING_OBJECTIVE:
-                prioritized_tasks = prioritization_agent()
-                if prioritized_tasks:
-                    tasks_storage.replace(prioritized_tasks)
+            
+            prioritized_tasks = prioritization_agent()
+            if prioritized_tasks:
+                tasks_storage.replace(prioritized_tasks)
 
-            # Sleep a bit before checking the task list again
-            time.sleep(5)
         else:
-            print('Done.')
+            print("Done.")
             loop = False
 
 
