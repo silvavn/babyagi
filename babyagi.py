@@ -23,9 +23,8 @@ from chromadb.config import Settings
 
 class BabyAGI:
     def __init__(self):
-        self.chroma_client = None
-        self.LLM_MODEL = None
-        self.OPENAI_API_KEY = None
+        self._chroma_client = None
+        self._LLM_MODEL = None
 
     # function to set up chromadb client
     @property
@@ -45,6 +44,19 @@ class BabyAGI:
     def LLM_MODEL(self, value):
         self._LLM_MODEL = value
 
+    # prints the BabyAGI configuration
+    def print_config(self):
+        print("\033[95m\033[1m" + "\n*****CONFIGURATION*****\n" + "\033[0m\033[0m")
+        print(f"Name  : {self.INSTANCE_NAME}")
+        print(f"Mode  : {'alone' if self.COOPERATIVE_MODE in ['n', 'none'] else 'local' if self.COOPERATIVE_MODE in ['l', 'local'] else 'distributed' if self.COOPERATIVE_MODE in ['d', 'distributed'] else 'undefined'}")
+        print(f"LLM   : {self.LLM_MODEL}")
+
+    # checks whether the basic settings are correct
+    def check_config(self):
+        # Check if we know what we are doing
+        assert self.OBJECTIVE, "\033[91m\033[1m" + "OBJECTIVE environment variable is missing from .env" + "\033[0m\033[0m"
+        assert self.INITIAL_TASK, "\033[91m\033[1m" + "INITIAL_TASK environment variable is missing from .env" + "\033[0m\033[0m"
+
 def make_baby(coop_mode:str="none", join_existing:bool=False):
     baby_agi = BabyAGI()
     baby_agi.chroma_client = chromadb.Client(Settings(anonymized_telemetry=False))
@@ -63,102 +75,28 @@ def make_baby(coop_mode:str="none", join_existing:bool=False):
     baby_agi.JOIN_EXISTING_OBJECTIVE = False
     baby_agi.OBJECTIVE = os.getenv("OBJECTIVE", "")
     baby_agi.INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
-    # Model configuration
-    baby_agi.OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
+
+    print("\033[94m\033[1m" + "\n*****OBJECTIVE*****\n" + "\033[0m\033[0m")
+    print(f"{baby_agi.OBJECTIVE}")
+
+    if not baby_agi.JOIN_EXISTING_OBJECTIVE:
+        print("\033[93m\033[1m" + "\nInitial task:" + "\033[0m\033[0m" + f" {baby_agi.INITIAL_TASK}")
+    else:
+        print("\033[93m\033[1m" + f"\nJoining to help the objective" + "\033[0m\033[0m")
 
     return baby_agi
 
-print("\033[95m\033[1m" + "\n*****CONFIGURATION*****\n" + "\033[0m\033[0m")
-print(f"Name  : {INSTANCE_NAME}")
-print(f"Mode  : {'alone' if COOPERATIVE_MODE in ['n', 'none'] else 'local' if COOPERATIVE_MODE in ['l', 'local'] else 'distributed' if COOPERATIVE_MODE in ['d', 'distributed'] else 'undefined'}")
-print(f"LLM   : {LLM_MODEL}")
-
-
-# Check if we know what we are doing
-assert OBJECTIVE, "\033[91m\033[1m" + "OBJECTIVE environment variable is missing from .env" + "\033[0m\033[0m"
-assert INITIAL_TASK, "\033[91m\033[1m" + "INITIAL_TASK environment variable is missing from .env" + "\033[0m\033[0m"
-
-LLAMA_MODEL_PATH = os.getenv("LLAMA_MODEL_PATH", "models/llama-13B/ggml-model.bin")
-if LLM_MODEL.startswith("llama"):
-    if can_import("llama_cpp"):
-        from llama_cpp import Llama
-
-        print(f"LLAMA : {LLAMA_MODEL_PATH}" + "\n")
-        assert os.path.exists(LLAMA_MODEL_PATH), "\033[91m\033[1m" + f"Model can't be found." + "\033[0m\033[0m"
-
-        CTX_MAX = 1024
-        LLAMA_THREADS_NUM = int(os.getenv("LLAMA_THREADS_NUM", 8))
-
-        print('Initialize model for evaluation')
-        llm = Llama(
-            model_path=LLAMA_MODEL_PATH,
-            n_ctx=CTX_MAX,
-            n_threads=LLAMA_THREADS_NUM,
-            n_batch=512,
-            use_mlock=False,
-        )
-
-        print('\nInitialize model for embedding')
-        llm_embed = Llama(
-            model_path=LLAMA_MODEL_PATH,
-            n_ctx=CTX_MAX,
-            n_threads=LLAMA_THREADS_NUM,
-            n_batch=512,
-            embedding=True,
-            use_mlock=False,
-        )
-
-        print(
-            "\033[91m\033[1m"
-            + "\n*****USING LLAMA.CPP. POTENTIALLY SLOW.*****"
-            + "\033[0m\033[0m"
-        )
-    else:
-        print(
-            "\033[91m\033[1m"
-            + "\nLlama LLM requires package llama-cpp. Falling back to GPT-3.5-turbo."
-            + "\033[0m\033[0m"
-        )
-        LLM_MODEL = "gpt-3.5-turbo"
-
-if LLM_MODEL.startswith("gpt-4"):
-    print(
-        "\033[91m\033[1m"
-        + "\n*****USING GPT-4. POTENTIALLY EXPENSIVE. MONITOR YOUR COSTS*****"
-        + "\033[0m\033[0m"
-    )
-
-if LLM_MODEL.startswith("human"):
-    print(
-        "\033[91m\033[1m"
-        + "\n*****USING HUMAN INPUT*****"
-        + "\033[0m\033[0m"
-    )
-
-print("\033[94m\033[1m" + "\n*****OBJECTIVE*****\n" + "\033[0m\033[0m")
-print(f"{OBJECTIVE}")
-
-if not JOIN_EXISTING_OBJECTIVE:
-    print("\033[93m\033[1m" + "\nInitial task:" + "\033[0m\033[0m" + f" {INITIAL_TASK}")
-else:
-    print("\033[93m\033[1m" + f"\nJoining to help the objective" + "\033[0m\033[0m")
-
-# Configure OpenAI
-openai.api_key = OPENAI_API_KEY
-
-
 # Llama embedding function
-class LlamaEmbeddingFunction(EmbeddingFunction):
-    def __init__(self):
-        return
+# class LlamaEmbeddingFunction(EmbeddingFunction):
+#     def __init__(self):
+#         return
 
-
-    def __call__(self, texts: Documents) -> Embeddings:
-        embeddings = []
-        for t in texts:
-            e = llm_embed.embed(t)
-            embeddings.append(e)
-        return embeddings
+#     def __call__(self, texts: Documents) -> Embeddings:
+#         embeddings = []
+#         for t in texts:
+#             e = llm_embed.embed(t)
+#             embeddings.append(e)
+#         return embeddings
 
 
 # Results storage using local ChromaDB
@@ -220,35 +158,11 @@ class DefaultResultsStorage:
         )
         return [item["task"] for item in results["metadatas"][0]]
 
-
-# Initialize results storage
-def try_weaviate():
-    WEAVIATE_URL = os.getenv("WEAVIATE_URL", "")
-    WEAVIATE_USE_EMBEDDED = os.getenv("WEAVIATE_USE_EMBEDDED", "False").lower() == "true"
-    if (WEAVIATE_URL or WEAVIATE_USE_EMBEDDED) and can_import("extensions.weaviate_storage"):
-        WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY", "")
-        from extensions.weaviate_storage import WeaviateResultsStorage
-        print("\nUsing results storage: " + "\033[93m\033[1m" + "Weaviate" + "\033[0m\033[0m")
-        return WeaviateResultsStorage(OPENAI_API_KEY, WEAVIATE_URL, WEAVIATE_API_KEY, WEAVIATE_USE_EMBEDDED, LLM_MODEL, LLAMA_MODEL_PATH, RESULTS_STORE_NAME, OBJECTIVE)
-    return None
-
-def try_pinecone():
-    PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
-    if PINECONE_API_KEY and can_import("extensions.pinecone_storage"):
-        PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "")
-        assert (
-            PINECONE_ENVIRONMENT
-        ), "\033[91m\033[1m" + "PINECONE_ENVIRONMENT environment variable is missing from .env" + "\033[0m\033[0m"
-        from extensions.pinecone_storage import PineconeResultsStorage
-        print("\nUsing results storage: " + "\033[93m\033[1m" + "Pinecone" + "\033[0m\033[0m")
-        return PineconeResultsStorage(OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_ENVIRONMENT, LLM_MODEL, LLAMA_MODEL_PATH, RESULTS_STORE_NAME, OBJECTIVE)
-    return None
-
 def use_chroma():
     print("\nUsing results storage: " + "\033[93m\033[1m" + "Chroma (Default)" + "\033[0m\033[0m")
     return DefaultResultsStorage()
 
-results_storage = try_weaviate() or try_pinecone() or use_chroma()
+results_storage = use_chroma()
 
 # Task storage supporting only a single instance of BabyAGI
 class SingleTaskListStorage:
@@ -312,92 +226,24 @@ def openai_call(
     max_tokens: int = 100,
 ):
     while True:
-        try:
-            if model.lower().startswith("llama"):
-                result = llm(prompt[:CTX_MAX],
-                             stop=["### Human"],
-                             echo=False,
-                             temperature=0.2,
-                             top_k=40,
-                             top_p=0.95,
-                             repeat_penalty=1.05,
-                             max_tokens=200)
-                # print('\n*****RESULT JSON DUMP*****\n')
-                # print(json.dumps(result))
-                # print('\n')
-                return result['choices'][0]['text'].strip()
-            elif model.lower().startswith("human"):
-                return user_input_await(prompt)
-            elif not model.lower().startswith("gpt-"):
-                # Use completion API
-                response = openai.Completion.create(
-                    engine=model,
-                    prompt=prompt,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=1,
-                    frequency_penalty=0,
-                    presence_penalty=0,
-                )
-                return response.choices[0].text.strip()
-            else:
-                # Use 4000 instead of the real limit (4097) to give a bit of wiggle room for the encoding of roles.
-                # TODO: different limits for different models.
-
-                trimmed_prompt = limit_tokens_from_string(prompt, model, 4000 - max_tokens)
-
-                # Use chat completion API
-                messages = [{"role": "system", "content": trimmed_prompt}]
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    n=1,
-                    stop=None,
-                )
-                return response.choices[0].message.content.strip()
-        except openai.error.RateLimitError:
-            print(
-                "   *** The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        except openai.error.Timeout:
-            print(
-                "   *** OpenAI API timeout occurred. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        except openai.error.APIError:
-            print(
-                "   *** OpenAI API error occurred. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        except openai.error.APIConnectionError:
-            print(
-                "   *** OpenAI API connection error occurred. Check your network settings, proxy configuration, SSL certificates, or firewall rules. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        except openai.error.InvalidRequestError:
-            print(
-                "   *** OpenAI API invalid request. Check the documentation for the specific API method you are calling and make sure you are sending valid and complete parameters. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        except openai.error.ServiceUnavailableError:
-            print(
-                "   *** OpenAI API service unavailable. Waiting 10 seconds and trying again. ***"
-            )
-            time.sleep(10)  # Wait 10 seconds and try again
-        else:
-            break
+        result = llm(prompt[:CTX_MAX],
+                        stop=["### Human"],
+                        echo=False,
+                        temperature=0.2,
+                        top_k=40,
+                        top_p=0.95,
+                        repeat_penalty=1.05,
+                        max_tokens=200)
+        # print('\n*****RESULT JSON DUMP*****\n')
+        # print(json.dumps(result))
+        # print('\n')
+        return result['choices'][0]['text'].strip()
 
 
 def task_creation_agent(
         objective: str, result: Dict, task_description: str, task_list: List[str]
 ):
-    prompt = f"""
-You are to use the result from an execution agent to create new tasks with the following objective: {objective}.
-The last completed task has the result: \n{result["data"]}
-This result was based on this task description: {task_description}.\n"""
+    prompt = f"""Use the result from the execution agent to create new tasks with the following objective: {objective}.\nThe last completed task has the result: \n{result["data"]}\nThis result was based on this task description: {task_description}.\n"""
 
     if task_list:
         prompt += f"These are incomplete tasks: {', '.join(task_list)}\n"
@@ -405,11 +251,12 @@ This result was based on this task description: {task_description}.\n"""
     if task_list:
         prompt += "These new tasks must not overlap with incomplete tasks. "
 
-    prompt += """
-Return one task per line in your response. The result must be a numbered list in the format:
+    prompt += """Return one task per line in your response. The result must be a numbered list in the format:
 
 #. First task
 #. Second task
+...
+#. #th task
 
 The number of each entry must be followed by a period. If your list is empty, write "There are no tasks to add at this time."
 Unless your list is empty, do not include any headers before your numbered list or follow your numbered list with any other output."""
