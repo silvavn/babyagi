@@ -1,1 +1,2 @@
 *.py text eol=lf
+llama-2-7b.Q5_K_M.gguf filter=lfs diff=lfs merge=lfs -text
