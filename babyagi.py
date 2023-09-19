@@ -12,7 +12,7 @@ from typing import Dict, List
 import chromadb
 import tiktoken as tiktoken
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+# from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 import re
 from baby_agi import BabyAGI
 
@@ -24,16 +24,12 @@ def make_baby(coop_mode:str="none", join_existing:bool=False):
     }
     agent_settings["vectordb_client"] = chromadb.Client(Settings(anonymized_telemetry=False))
     agent_settings["LLM_MODEL"] = os.getenv("LLM_MODEL", "").lower()
-    agent_settings["RESULTS_STORE_NAME"] = os.getenv("RESULTS_STORE_NAME", os.getenv("TABLE_NAME", ""))
-
-    # Run configuration
-    agent_settings["INSTANCE_NAME"].INSTANCE_NAME = os.getenv("INSTANCE_NAME", "")
+    agent_settings["LLAMA_API_PATH"] = os.getenv("LLAMA_API_PATH", "")
+    agent_settings["RESULTS_STORE_NAME"] = os.getenv("RESULTS_STORE_NAME", "")
+    agent_settings["AGENT_NAME"].AGENT_NAME = os.getenv("AGENT_NAME", "")
     agent_settings["OBJECTIVE"] = os.getenv("OBJECTIVE", "")
     agent_settings["INITIAL_TASK"] = os.getenv("INITIAL_TASK", "")
     
-
-    print("\033[94m\033[1m" + "\n*****OBJECTIVE*****\n" + "\033[0m\033[0m")
-    print(f"{baby_agi.OBJECTIVE}")
 
     if not baby_agi.JOIN_EXISTING_OBJECTIVE:
         print("\033[93m\033[1m" + "\nInitial task:" + "\033[0m\033[0m" + f" {baby_agi.INITIAL_TASK}")
