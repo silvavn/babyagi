@@ -1,0 +1,74 @@
+import logging
+import chromadb
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from typing import Dict, List
+from utils import get_embeddings
+
+
+# Llama embedding function
+class LlamaEmbeddingFunction(EmbeddingFunction):
+    def __init__(self, LLAMA_API_PATH: str = "http://localhost:8000/"):
+        self.LLAMA_API_PATH = LLAMA_API_PATH
+
+    def __call__(self, texts: Documents) -> Embeddings:
+        embeddings = []
+        for t in texts:
+            e = get_embeddings(self.LLAMA_API_PATH, t)
+            embeddings.append(e)
+        return embeddings
+
+
+class ResultsStore:
+    def __init__(
+        self,
+        RESULTS_STORE_NAME: str = "",
+        LLAMA_API_PATH: str = "http://localhost:8000/",
+    ):
+        logging.getLogger("chromadb").setLevel(logging.ERROR)
+        # Create Chroma collection
+        chroma_persist_dir = "chroma"
+        chroma_client = chromadb.PersistentClient(
+            settings=chromadb.config.Settings(
+                persist_directory=chroma_persist_dir,
+            )
+        )
+
+        metric = "cosine"
+
+        embedding_function = LlamaEmbeddingFunction()
+
+        self.collection = chroma_client.get_or_create_collection(
+            name=RESULTS_STORE_NAME,
+            metadata={"hnsw:space": metric},
+            embedding_function=embedding_function,
+        )
+
+    def add(self, task: Dict, result: str, result_id: str):
+        embeddings = get_embeddings(self.LLAMA_API_PATH, result)
+        if (
+            len(self.collection.get(ids=[result_id], include=[])["ids"]) > 0
+        ):  # Check if the result already exists
+            return self.collection.update(
+                ids=result_id,
+                embeddings=embeddings,
+                documents=result,
+                metadatas={"task": task["task_name"], "result": result},
+            )
+
+        return self.collection.add(
+            ids=result_id,
+            embeddings=embeddings,
+            documents=result,
+            metadatas={"task": task["task_name"], "result": result},
+        )
+
+    def query(self, query: str, top_results_num: int) -> List[dict]:
+        count: int = self.collection.count()
+        if count == 0:
+            return []
+        results = self.collection.query(
+            query_texts=query,
+            n_results=min(top_results_num, count),
+            include=["metadatas"],
+        )
+        return [item["task"] for item in results["metadatas"][0]]
