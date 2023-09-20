@@ -5,13 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-import time
 import logging
-from collections import deque
+
 from typing import Dict, List
 import chromadb
 import tiktoken as tiktoken
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 # from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 import re
@@ -19,7 +17,6 @@ from baby_agi import BabyAGI
 
 # default opt out of chromadb telemetry.
 from chromadb.config import Settings
-
 
 def make_baby(coop_mode: str = "none", join_existing: bool = False):
     agent_settings = {}
@@ -61,7 +58,7 @@ def make_baby(coop_mode: str = "none", join_existing: bool = False):
 
 # Results storage using local ChromaDB
 class DefaultResultsStorage:
-    def __init__(self):
+    def __init__(self, RESULTS_STORE_NAME: str = ""):
         logging.getLogger("chromadb").setLevel(logging.ERROR)
         # Create Chroma collection
         chroma_persist_dir = "chroma"
@@ -72,10 +69,9 @@ class DefaultResultsStorage:
         )
 
         metric = "cosine"
-        if LLM_MODEL.startswith("llama"):
-            embedding_function = LlamaEmbeddingFunction()
-        else:
-            embedding_function = OpenAIEmbeddingFunction(api_key=OPENAI_API_KEY)
+
+        embedding_function = LlamaEmbeddingFunction()
+
         self.collection = chroma_client.get_or_create_collection(
             name=RESULTS_STORE_NAME,
             metadata={"hnsw:space": metric},
@@ -83,28 +79,23 @@ class DefaultResultsStorage:
         )
 
     def add(self, task: Dict, result: str, result_id: str):
-        # Break the function if LLM_MODEL starts with "human" (case-insensitive)
-        if LLM_MODEL.startswith("human"):
-            return
-        # Continue with the rest of the function
-
-        embeddings = llm_embed.embed(result) if LLM_MODEL.startswith("llama") else None
+        embeddings = llm_embed.embed(result)
         if (
             len(self.collection.get(ids=[result_id], include=[])["ids"]) > 0
         ):  # Check if the result already exists
-            self.collection.update(
+            return self.collection.update(
                 ids=result_id,
                 embeddings=embeddings,
                 documents=result,
                 metadatas={"task": task["task_name"], "result": result},
             )
-        else:
-            self.collection.add(
-                ids=result_id,
-                embeddings=embeddings,
-                documents=result,
-                metadatas={"task": task["task_name"], "result": result},
-            )
+
+        return self.collection.add(
+            ids=result_id,
+            embeddings=embeddings,
+            documents=result,
+            metadatas={"task": task["task_name"], "result": result},
+        )
 
     def query(self, query: str, top_results_num: int) -> List[dict]:
         count: int = self.collection.count()
@@ -118,43 +109,8 @@ class DefaultResultsStorage:
         return [item["task"] for item in results["metadatas"][0]]
 
 
-def use_chroma():
-    print(
-        "\nUsing results storage: "
-        + "\033[93m\033[1m"
-        + "Chroma (Default)"
-        + "\033[0m\033[0m"
-    )
-    return DefaultResultsStorage()
 
 
-results_storage = use_chroma()
-
-
-# Task storage supporting only a single instance of BabyAGI
-class SingleTaskListStorage:
-    def __init__(self):
-        self.tasks = deque([])
-        self.task_id_counter = 0
-
-    def append(self, task: Dict):
-        self.tasks.append(task)
-
-    def replace(self, tasks: List[Dict]):
-        self.tasks = deque(tasks)
-
-    def popleft(self):
-        return self.tasks.popleft()
-
-    def is_empty(self):
-        return False if self.tasks else True
-
-    def next_task_id(self):
-        self.task_id_counter += 1
-        return self.task_id_counter
-
-    def get_task_names(self):
-        return [t["task_name"] for t in self.tasks]
 
 
 # Initialize tasks storage
@@ -172,7 +128,7 @@ def prioritization_agent():
     print(f"\n****TASK PRIORITIZATION AGENT RESPONSE****\n{response}\n")
     if not response:
         print(
-            "Received empty response from priotritization agent. Keeping task list unchanged."
+            "Received empty response from prioritization agent. Keeping task list unchanged."
         )
         return
     new_tasks = response.split("\n") if "\n" in response else [response]
@@ -284,7 +240,6 @@ def main():
                 print(str(new_task))
                 tasks_storage.append(new_task)
 
-            
             prioritized_tasks = prioritization_agent()
             if prioritized_tasks:
                 tasks_storage.replace(prioritized_tasks)
