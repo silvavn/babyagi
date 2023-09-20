@@ -1,14 +1,20 @@
-#!/usr/bin/env python3
+#!/opt/homebrew/Caskroom/miniconda/base/envs/babyagi311/bin/python
 from dotenv import load_dotenv
 import os
 import chromadb
 import tiktoken as tiktoken
-import re
-from baby_agi import BabyAGI
-from tasklist_store import TaskListStore
+
+# import re
+# from baby_agi import BabyAGI
+from tasks import TaskListStore, TaskNode
 
 # default opt out of chromadb telemetry.
 from chromadb.config import Settings
+from utils import get_completion
+
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+cwd = os.getcwd()
+print(cwd)
 
 
 def read_settings_from_env():
@@ -77,7 +83,7 @@ def read_settings_from_env():
 #             context
 #         )
 #     prompt += f"\nYour task: {task}\nResponse:"
-    # return openai_call(prompt, max_tokens=2000)
+# return openai_call(prompt, max_tokens=2000)
 
 
 # Get the top n completed tasks for the objective
@@ -99,18 +105,51 @@ def read_settings_from_env():
 #     return results
 
 
+def describe_task(task: TaskNode, **kwargs) -> dict:
+    prompt = open("prompts/describe/describe_task.md", "r").read()
+    return get_completion(prompt.format(TASK=task.name), **kwargs)
+
+
+def describe_task_detail(task: TaskNode, **kwargs) -> dict:
+    question_list = (
+        open("prompts/describe/describe_questions.csv", "r").read().split("\n")
+    )
+    response = {}
+    for question in question_list:
+        prompt = open("prompts/describe/describe_task_question.md", "r").read()
+        response[question] = get_completion(
+            prompt.format(
+                TASK=task.name,
+                TASK_DESCRIPTION=task.description,
+                TASK_QUESTION=question,
+            ),
+            **kwargs
+        )
+    return response
+
+
+def generate_faq_task(task: TaskNode, **kwargs) -> dict:
+    prompt = open("prompts/generate_faq.md", "r").read()
+    return get_completion(
+        prompt.format(TASK_NAME=task.name, TASK_DESCRIPTION=task.description), **kwargs
+    )
+
+
+def generate_tasks(goal: str, description: str, **kwargs):
+    # loads `./prompts/create_task.txt` and generates a task
+    prompt = open("prompts/create_task.md", "r").read()
+    prompt.format(OBJECTIVE=goal)
+
+
 def main():
+    load_dotenv()
     loop = True
-    tasks_storage = TaskListStore()
-    initial_task = {"task_id": tasks_storage.next_task_id(), "task_name": INITIAL_TASK}
-    tasks_storage.append(initial_task)
 
-    # Step 1: Pull the first incomplete task
-    task = tasks_storage.popleft()
-    print("\033[92m\033[1m" + "\n*****NEXT TASK*****\n" + "\033[0m\033[0m")
-    print(str(task["task_name"]))
-
-    
+    # Make a Fried Egg
+    initial_task = TaskNode("Make a Fried Egg")
+    task_description = describe_task(initial_task)
+    print(describe_task_detail(initial_task))
+    print(generate_faq_task(initial_task))
 
     # while loop:
     #     # As long as there are tasks in the storage...
@@ -119,8 +158,6 @@ def main():
     #         print("\033[95m\033[1m" + "\n*****TASK LIST*****\n" + "\033[0m\033[0m")
     #         for t in tasks_storage.get_task_names():
     #             print(" • " + str(t))
-
-
 
     #         # Send to execution function to complete the task based on the context
     #         result = execution_agent(OBJECTIVE, str(task["task_name"]))

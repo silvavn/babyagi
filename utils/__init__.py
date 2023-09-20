@@ -1,16 +1,35 @@
 import requests
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
-
-def get_embeddings(url: str, text: str) -> dict:
+def get_embedding(text: str, url: str = "http://localhost:8080", **kwargs) -> dict:
     payload = {"content": text}
+    payload.update(kwargs)
+    headers = {"Content-Type": "application/json"}
+    try:
+        response = requests.post(f"{url}/embedding", json=payload, headers=headers)
+        return response.json()["embedding"]
+    except Exception as e:
+        print(e)
+        print("PAYLOAD:", payload)
+        print("RESPONSE:", response)
+        return None
+
+def get_completion(prompt: str, url: str = "http://localhost:8080", **kwargs) -> dict:
+    payload = {"prompt": prompt}
+    payload.update(kwargs)
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers)
-    return response.json()
+    response = requests.post(f"{url}/completion", json=payload, headers=headers)
+    return response.json["content"]
 
-def get_completion(url: str, prompt: str, **kwargs) -> dict:
-    payload = {"prompt": prompt, **kwargs}
-    headers = {"Content-Type": "application/json"}
+# Llama embedding function
+class LlamaEmbeddingFunction(EmbeddingFunction):
+    def __init__(self, LLAMA_API_PATH: str = "http://localhost:8080"):
+        self.LLAMA_API_PATH = LLAMA_API_PATH
 
-    response = requests.post(url, json=payload, headers=headers)
-    return response.json()
+    def __call__(self, texts: Documents) -> Embeddings:
+        embeddings = []
+        for t in texts:
+            e = get_embedding(t, self.LLAMA_API_PATH)
+            embeddings.append(e)
+        return embeddings

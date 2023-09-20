@@ -1,20 +1,20 @@
 class BabyAGI:
-    class BabyAGI:
+    """
+    A class representing a baby artificial general intelligence agent.
+    """
+
+    def __init__(self, **kwargs):
         """
-        A class representing a baby artificial general intelligence agent.
+        Args:
+            vectordb_client (object): The vectordb client.
+            AGENT_NAME (str): The name of the agent.
+            OBJECTIVE (str): The objective of the agent.
+            INITIAL_TASK (str): The initial task of the agent.
+            LLM_MODEL (str): The LLM model alias being used to control the agent.
+            LLAMA_API_PATH (str): The path to the llama api.
         """
-        def __init__(self, **kwargs):
-            """
-                Args:
-                    vectordb_client (object): The vectordb client.
-                    AGENT_NAME (str): The name of the agent.
-                    OBJECTIVE (str): The objective of the agent.
-                    INITIAL_TASK (str): The initial task of the agent.
-                    LLM_MODEL (str): The LLM model alias being used to control the agent.
-                    LLAMA_API_PATH (str): The path to the llama api.
-            """
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     # prints the BabyAGI configuration
     def print_config(self):

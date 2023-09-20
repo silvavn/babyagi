@@ -13,7 +13,7 @@ class LlamaEmbeddingFunction(EmbeddingFunction):
     def __call__(self, texts: Documents) -> Embeddings:
         embeddings = []
         for t in texts:
-            e = get_embeddings(self.LLAMA_API_PATH, t)
+            e = get_embeddings(self.LLAMA_API_PATH, t)["embeddings"]
             embeddings.append(e)
         return embeddings
 
