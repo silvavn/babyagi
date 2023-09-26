@@ -12,7 +12,7 @@ def get_embedding(text: str, url: str = "http://localhost:8080", **kwargs) -> di
         print(e)
         print("PAYLOAD:", payload)
         print("RESPONSE:", response)
-        return response
+        return None
 
 def get_completion(prompt: str, url: str = "http://localhost:8080", **kwargs) -> dict:
     payload = {"prompt": prompt}
@@ -25,7 +25,7 @@ def get_completion(prompt: str, url: str = "http://localhost:8080", **kwargs) ->
         print(e)
         print("PAYLOAD:", payload)
         print("RESPONSE:", response)
-        return response
+        return None
 
 # Llama embedding function
 class LlamaEmbeddingFunction(EmbeddingFunction):
@@ -38,3 +38,9 @@ class LlamaEmbeddingFunction(EmbeddingFunction):
             e = get_embedding(t, self.LLAMA_API_PATH)
             embeddings.append(e)
         return embeddings
+    
+    def embed_documents(self, texts: Documents) -> Embeddings:
+        return self(texts)
+    
+    def embed_query(self, text: str) -> Embeddings:
+        return self([text])[0]
