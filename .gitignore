@@ -14,6 +14,9 @@ env/
 models
 llama/
 
+/data/harry_potter/chapters
+/data/harry_potter/pages
+
 babycoder/playground/*
 babycoder/playground_data/*
 babycoder/objective.txt
