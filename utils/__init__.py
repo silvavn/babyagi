@@ -12,15 +12,20 @@ def get_embedding(text: str, url: str = "http://localhost:8080", **kwargs) -> di
         print(e)
         print("PAYLOAD:", payload)
         print("RESPONSE:", response)
-        return None
+        return response
 
 def get_completion(prompt: str, url: str = "http://localhost:8080", **kwargs) -> dict:
     payload = {"prompt": prompt}
     payload.update(kwargs)
     headers = {"Content-Type": "application/json"}
-
-    response = requests.post(f"{url}/completion", json=payload, headers=headers)
-    return response.json["content"]
+    try:
+        response = requests.post(f"{url}/completion", json=payload, headers=headers)
+        return response.json()["content"]
+    except Exception as e:
+        print(e)
+        print("PAYLOAD:", payload)
+        print("RESPONSE:", response)
+        return response
 
 # Llama embedding function
 class LlamaEmbeddingFunction(EmbeddingFunction):
