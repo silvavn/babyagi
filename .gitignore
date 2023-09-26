@@ -16,6 +16,7 @@ llama/
 
 /data/harry_potter/chapters
 /data/harry_potter/pages
+/data/harry_potter/books
 
 babycoder/playground/*
 babycoder/playground_data/*
